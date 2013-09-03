@@ -1,22 +1,33 @@
 { 
 	"name": "subscriber", 
 	"description": "Subscriber Module",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"url": "http://github.com/deitch/subscriber",
 	"author": "Avi Deitcher <avi@deitcher.net>",
 	"engines": ["node >= 0.8"],
 	"dependencies": {
+		"async":"0.2.x",
     "lodash":">=1.3.1"
 	},
 	"devDependencies": {
 		"express":"3.x",
 		"mocha":"1.x",
 		"supertest":"0.x",
+		"searchjs":"0.x",
 		"should":"1.x"
 	},
 	"scripts": {
 		"test":"node_modules/.bin/mocha"
 	},
+	"keywords": [
+		"subscribe",
+		"subscription",
+		"express",
+		"node",
+		"nodejs",
+		"authorization",
+		"plans"
+	],
 	"main": "./lib/subscriber.js", 
 	"repository": {
 		"type" : "git",

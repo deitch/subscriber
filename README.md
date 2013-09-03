@@ -266,6 +266,14 @@ db.user("john",function(err,res){
 
 subscriber will `get` "john", and get back what "john" actually has right now. In our example above, he already has 3 clients and 2 groups.
 
+
+But how does subscriber know which user is logged in, and thus which "name" to pass as the first argument to `db.user()`? It looks at `req.user` using the following logic:
+
+1. If req.user is a string, use that, e.g. `req.user = "john"` will lead to `db.user("john",callback)`
+2. If req.user is an object, use `req.user.id`, e.g. `req.user.id = "john" will lead to `db.user("john",callback)`
+3. If req.user is `null` or `undefined`, there is no user
+
+
 #### Putting it Together
 Let's use a real example. "john" is logged in and wants to create a new client. subscriber sees the request. If plans are already loaded and not timed out, it goes straight to checking its plans in cache, else it loads them again:
 

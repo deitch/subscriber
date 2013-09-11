@@ -45,7 +45,7 @@ var express = require('express'), app = express(), subscriber = require('subscri
 db = dbSetUp();
 app.use(mySecurityPackage);
 app.use(subscriber.init({db:db,timeout:60}));
-app.use(app.router)l
+app.use(app.router);
 
 app.listen(3000);
 ````

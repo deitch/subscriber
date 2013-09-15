@@ -67,6 +67,18 @@ subscriber allows you to support time-limited free trials, as well as arbitraril
 If you want, you can have subscriber enforce expiry dates for plans, by indicating on a user when the plan expires. Just say, "this plan expires on date X", and subscriber will enforce the user not being on the plan after that date.
 
 
+## User States
+This section lists all of the potential states that a user can be in, assuming the user has an account.
+
+* No plan: User is not on any plan at all
+* Regular plan unexpired: User is on a normal plan, which either has an expiry date in the future or no expiry date
+* Regular plan expired: User is on an expired plan, i.e. a plan with an expiry date in the past
+* Trial plan unexpired: User is on a free trial of a normal plan, which has an expiry date in the future
+* Trial plan expired with fallback: User was on a free trial of a plan; the free trial expired, leaving the user to fall back to the defined fallback plan.
+* Trial plan expired with no fallback: User was on a free trial of a plan; the free trial expired, no fallback was defined, leaving the user no plan to fall back upon. This is equivalent to "No plan", except that the system knows the user already *had* a free trial.
+* Trial plan extended: User was on a free trial of a plan, which would have expired, but an administrator extended the expiry date *for this user*.
+
+
 ##Usage
 ### What does it provide?
 subscriber provides control over requests based on different *subscriptions*. For example, if your Web service, say a consulting client management service, has three tiers: free, regular, pro. Free users get to have up to 3 clients, regular users up to 10 and pro up to 30. You want to ensure that each tier of users gets restricted to the amount they are allowed.
@@ -396,7 +408,7 @@ The "plan" property is an object with the following properties:
 * name: String. Required. Name of the plan.
 * trial: boolean. Optional. If `true`, then this person is in a free trial. Defaults to `false`.
 * join: Integer. Required. Date of the person joining the plan, as an integer (given by `Date.getTime()`)
-* expiry: Integer. Optional. Date of the person's plan expiring, as an integer (given by `Date.getTime()`)
+* expire: Integer. Optional. Date of the person's plan expiring, as an integer (given by `Date.getTime()`)
 
 If you do not want to track when the user joined the plan, when his current plan expires, and if it is a trial, you can use the following shorthand:
 

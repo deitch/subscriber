@@ -2,6 +2,12 @@
 /*global before, beforeEach, it, describe */
 var db = require('./resources/db'), express = require('express'), app, request = require('supertest'), r,
 subscriber = require('../lib/subscriber'),
+daysToMs = function (days) {
+	return(days*24*60*60*1000);
+},
+ago = function (days) {
+	return(new Date().getTime()-daysToMs(days));
+},
 getUser = function (req,res,next) {
 	var auth = req.headers.authorization, tmp, text;
 	if (auth) {
@@ -25,9 +31,6 @@ init = function (config) {
 	r = request(app);
 },
 testPlans = function (d) {
-	beforeEach(function(){
-	  db.reset();
-	});
 	before(function(){
 		init({db:d});
 	});
@@ -80,7 +83,7 @@ testPlans = function (d) {
 		  r.post('/clients').auth("free","free").type('json').send({client:"new"}).expect(200,done);
 		});
 		it('should restrict user with default path who is at maximum', function(done){
-			db.updateUser("free","clients",10);
+			db.updateUsage("free","clients",10);
 		  r.post('/clients').auth("free","free").type('json').send({client:"new"}).expect(403,done);
 		});
 		it('should restrict user who is already at the maximum', function(done){
@@ -107,7 +110,7 @@ testPlans = function (d) {
 		  r.post('/api/clients').auth("free","free").type('json').send({client:"new"}).expect(200,done);
 		});
 		it('should restrict user with default path who is at maximum', function(done){
-			db.updateUser("free","clients",10);
+			db.updateUsage("free","clients",10);
 		  r.post('/api/clients').auth("free","free").type('json').send({client:"new"}).expect(403,done);
 		});
 		it('should restrict user who is already at the maximum', function(done){
@@ -127,19 +130,75 @@ before(function(){
   debugger;
 });
 
+// for "trial" user - is on "basic" trial should have enough space to create another "client" in basic plan but not free plan
+
 describe('subscriber', function(){
+	beforeEach(function(){
+	  db.reset();
+	});
 	describe('plan only shorthand', function(){
 		testPlans(db.planOnlyShorthand);
 	});
 	describe('trial shorthand', function(){
 		testPlans(db.trialShorthand);
-		// need to test for trials
+		describe('with trials', function(){
+			before(function(){
+				init({db:db.trialShorthand});
+			});			  
+			it('should have a free trial without expiry use default trial duration', function(done){
+				// default duration is 14 days, so make it 30 days ago
+				var join = ago(30), expired = join+daysToMs(14);
+				db.updateUserPlan("trial","join",join);
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(403,{reason:"subscription",plan:"basic",expired:true,date:expired},done);
+		  });
+		  it('should have a free trial not expired like the matched plan', function(done){
+				// default duration is 14 days, so make it 7 days ago
+				db.updateUserPlan("trial","join",ago(7));
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(200,done);
+		  });
+		  it('should have a free trial expired like no plan', function(done){
+				var expired = ago(1);
+				db.updateUserPlan("trial","join",ago(7));
+				db.updateUserPlan("trial","expire",expired);
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(403,{reason:"subscription",plan:"basic",expired:true,date:expired},done);
+		  });
+		  it('should have a free trial expired with extension like the matched plan', function(done){
+				db.updateUserPlan("trial","join",ago(30));
+				db.updateUserPlan("trial","expire",ago(-2));
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(200,done);
+		  });
+		});
 	});
 	describe('plan only', function(){
 		testPlans(db.planOnly);
 	});
 	describe('regular', function(){
-		testPlans(db.planOnly);
-		// need to test for trials
+		testPlans(db.regular);
+		describe('with trials', function(){
+			before(function(){
+				init({db:db.regular});
+			});			  
+		  it('should have a free trial without expiry use default trial duration', function(done){
+				// default duration is 14 days, so make it 30 days ago
+				db.updateUserPlan("trial","join",ago(30));
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(403,{reason:"subscription",plan:"free",limit:"groups",maximum:5},done);
+		  });
+		  it('should have a free trial not expired like the matched plan', function(done){
+				// default duration is 14 days, so make it 7 days ago
+				db.updateUserPlan("trial","join",ago(7));
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(200,done);
+		  });
+		  it('should have a free trial expired with extension like the matched plan', function(done){
+				db.updateUserPlan("trial","join",ago(30));
+				db.updateUserPlan("trial","expire",ago(-2));
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(200,done);
+		  });
+		  it('should have a free trial expired like the fallback plan', function(done){
+				// default duration is 14 days, so make it 30 days ago
+				db.updateUserPlan("trial","join",ago(7));
+				db.updateUserPlan("trial","expire",ago(1));
+			  r.post('/groups').auth("trial","trial").type('json').send({name:"my group"}).expect(403,{reason:"subscription",plan:"free",limit:"groups",maximum:5},done);
+		  });
+		});
 	});
 });

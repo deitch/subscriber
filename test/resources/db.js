@@ -8,10 +8,11 @@ var _ = require('lodash'), sjs = require('searchjs'), DATA = {
 	users: {
 		free: {plan:{name:"free"},usage:{clients:2,other:2}},
 		basic: {plan:"basic",usage:{groups:10,other:4}},
-		premium: {plan:{name:"premium"},clients:20,groups:25,other:19}
+		premium: {plan:{name:"premium"},clients:20,groups:25,other:19},
+		trial: {plan:{name:"basic",trial:true},clients:4,groups:6}
 	},
 	trial: {
-		
+		duration:14,fallback:"free"
 	}
 }, data, that = {
 	regular: {
@@ -35,7 +36,7 @@ var _ = require('lodash'), sjs = require('searchjs'), DATA = {
 			callback(null,_.cloneDeep(data.users[username]));
 		},
 		plans: function (callback) {
-			callback(null,_.cloneDeep({trial:data.trial.length,plans:data.plans}));
+			callback(null,_.cloneDeep({trial:data.trial.duration,plans:data.plans}));
 		}
 	},
 	planOnlyShorthand: {
@@ -49,9 +50,14 @@ var _ = require('lodash'), sjs = require('searchjs'), DATA = {
 	getUserBy: function (plan) {
 		return(_.where(data.users,{plan:plan}));
 	},
-	updateUser: function (username,field,change) {
+	updateUsage: function (username,field,change) {
 		var usage = data.users[username].usage || data.users[username];
-		usage[field] += change;
+		usage[field] = change;
+	},
+	updateUserPlan: function (username,field,value) {
+		if (data.users[username] && data.users[username].plan && data.users[username].plan.name) {
+			data.users[username].plan[field] = value;
+		}
 	},
 	reset: function () {
 		data = _.cloneDeep(DATA);

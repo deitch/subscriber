@@ -2,7 +2,7 @@
 
 
 ##Overview
-Subscriber is ***the*** subscriptions manager for [nodejs](http://nodejs.org)!
+Subscriber is ***the*** subscriptions manager for [nodejs](http://nodejs.org) and [expressjs](http://expressjs.com) apps!
 
 ````JavaScript
 var subscriber = require('subscriber'), express = require('express'), app = express(), db = require('./myDbSetup');
@@ -14,6 +14,19 @@ app.listen(3000);
 
 Done! You now have a subscription management service filtering every request and deciding whether or not it fits within the requestor's plan or subscription.
 
+## Features
+
+* Multiple plan types
+* Free-form plan names: name a plan whatever you want!
+* Control reads, writes, creates, updates, deletes
+* Works naturally with REST
+* Works with any REST resource name
+* Paid and free plans
+* Free trials
+* Plan expiry built-in
+* Completely backend database agnostic
+* Cache plans with controllable timeout
+
 
 ##Installation
 
@@ -24,9 +37,43 @@ npm install subscriber
 Doesn't get easier than that!
 
 
+## Planning your plans
+While installation is easy, you probably want to spend a *bit* of time before using subscriber to think about how you want to offer plans and what you want to restrict. After all, subscriber is responsible for enforcing *your* plan restrictions, not deciding what they should be. For that, please see [the future](http://en.wikipedia.org/wiki/Skynet_%28Terminator%29). 
+
+### Plan types
+You will usually have one or more plan "types", each of which has a name and restrictions. Let's create an example of a consulting client management service, with three tiers:
+
+* Tier "free" allows up to 3 clients
+* Tier "regular" allows up to 10 clients
+* Tier "pro" allows up to 30 clients
+
+Each login will be affiliated with one plan, describing what it can do. So user "joe" logging in will retrieve that he is on plan "regular" and thus be allowed to maintain up to 10 clients.
+
+You need to decide in advance (but can change at any time):
+
+1. The names of your plans
+2. The limits of your plans
+
+
+### Free trials
+Often, Web services offer a time-limited free trial of paid plans (since offering free trials of free plans really does not make much sense!). For example, if we are offering three paid plans - bronze, silver, gold - we may want to allow a new user to try any plan for 14 days, as long as s/he has never tried a plan before.
+
+subscriber allows you to support time-limited free trials, as well as arbitrarily extend the length of a particular trial. You do need to decide in advance (but can change at any time):
+
+1. Which plans get a free trial
+2. The default length of a free trial
+
+### Plan expiry
+If you want, you can have subscriber enforce expiry dates for plans, by indicating on a user when the plan expires. Just say, "this plan expires on date X", and subscriber will enforce the user not being on the plan after that date.
+
+
 ##Usage
 ### What does it provide?
 subscriber provides control over requests based on different *subscriptions*. For example, if your Web service, say a consulting client management service, has three tiers: free, regular, pro. Free users get to have up to 3 clients, regular users up to 10 and pro up to 30. You want to ensure that each tier of users gets restricted to the amount they are allowed.
+
+subscriber can also handle free trials. You may want to give users a free trial for 14 days (or maybe 25 days) of one or more of your paid plans, but only once.
+
+subscriber controls each and every access to make sure it conforms with the subscriber's subscription rights.
 
 
 #### What about authorization?
@@ -50,7 +97,7 @@ app.use(app.router);
 app.listen(3000);
 ````
 
-Personally, I would always recommend your security authorization package come *before* subscriber. You are better off preventing someone from doing something they would *never* be allowed to do before bothering to check their plan.
+Personally, I would always recommend your security authorization package, e.g. [cansecurity](http://github.com/deitch/cansecurity), come *before* subscriber. You are better off preventing someone from doing something they would *never* be allowed to do before bothering to check their plan.
 
 
 ### Getting started
@@ -88,21 +135,49 @@ In the above example, the user attempted to create too many items of type client
 
 
 ### db Instance
-The `db` instance passed to `subscriber.init()` is expected to have two asynchronous methods: `getPlans()` and `getUser()`
+The `db` instance passed to `subscriber.init()` is the key to subscriber getting information about:
+
+* what plans are available
+* what free trials are offered
+* what usage the current user has
+* what plan the current user is on
+* whether or not the current user plan is a free trial
+* when the current user's plan expires
+
+The combination of all of the above allows subscriber to determine whether or not the user is permitted to perform the action s/he wants.
+
+subscriber expects the `db` to have two asynchronous methods: `plans()` and `user()`
 
 #### Plans
-`db.plans(callback)` should retrieve all of the known plans and limits, and then pass them to the `callback`. The `callback` has the standard `expressjs`-style signature:
+`db.plans(callback)` should retrieve all of the known plans with their limits, as well as trial information, and then pass them to the `callback`. The `callback` has the standard `expressjs`-style signature:
 
     callback(err,data)
 
-`data` is an array of plan objects. Each object can have as many extraneous properties as it wants, but *must* have at least:
+`data` is a JS object composed of two parts:
 
-* `name`: the name of the plan. String.
-* *`item`*: for each item limited, a key in the name of the item limited, and the value of an integer of the limit.
+* `trial`: Object/Integer. Optional. information about free trials available on all plans.
+* `plans`: Array of plan objects. Required. Each object can have as many extraneous properties as it wants, but *must* have at least:
+* * `name`: the name of the plan. String.
+* * *`item`*: for each item limited, a key in the name of the item limited, and the value of an integer of the limit.
 
-For example: `[{name:"free",clients:3,groups:2},{name:"bronze",clients:5,groups:10}]`
+If there is no free trial offered, you can simplify the response by just returning the array of plans.
 
-In this example, anyone in the "free" plan can have 3 clients and 2 groups, while anyone in the "bronze" plan can have 5 clients and 10 groups.
+Examples: 
+
+1. No trial, just plans
+
+    `{plans:[{name:"free",clients:3,groups:2},{name:"bronze",clients:5,groups:10}]}`
+		
+2. No trial, just plans (simpler form)
+
+    `[{name:"free",clients:3,groups:2},{name:"bronze",clients:5,groups:10}]`
+		
+3. Free trial and plans
+
+    `{trial:14,plans:[{name:"free",clients:3,groups:2},{name:"bronze",clients:5,groups:10}]}`
+
+
+In these examples, anyone in the "free" plan can have 3 clients and 2 groups, while anyone in the "bronze" plan can have 5 clients and 10 groups.
 
 If this is the entire set of plans, then the only limits are on *creating* a new client or group, i.e. `POST /.../groups`. What about other actions? 
 
@@ -114,8 +189,12 @@ In all cases, a limit value means:
 * `null` or `undefined`: unlimited number allowed
 
 ##### Form of a plan
+Each plan object in the returned array must have the following properties:
 
-The form for a plan is that each key represents an action with limited, e.g. `clients` above, and the value should be an object giving the action and limits. Here is an example:
+* `name`: String. Required. The name of the plan. This is never shown to the end-user (unless you choose to do so), but is used to relate the plan a user is on to the limits of the plan.
+* `limits`: Object. Optional. The limits for each resource type.
+
+Each key of `limits` represents an action with limits, e.g. `clients` above, and the value should be an object giving the action and limits. Here is an example:
 
 ````JavaScript
 {name:"bronze",clients:{
@@ -132,9 +211,20 @@ In this example, users in the "bronze" plan can update (with `PUT`) or list all 
 ##### "create" Shorthand
 Because the most common restriction is creating items, there is a shorthand to limit creation:
 
-    {name:"bronze", groups:10}
+    {name:"bronze", limits:{groups:10}}
 		
 Can create no more than 10 groups. All other actions are unrestricted. This is equivalent to:
+
+````JavaScript
+{name:"bronze",limits:{groups:{
+	create:10
+}}}
+````
+
+But shorter is better, right?
+
+##### Even shorter hand
+If you have no `limits` property, then *all* properties of the plan itself - except the reserved "name" property - will be treated as limits:
 
 ````JavaScript
 {name:"bronze",groups:{
@@ -142,7 +232,12 @@ Can create no more than 10 groups. All other actions are unrestricted. This is e
 }}
 ````
 
-But shorter is better, right?
+or even
+
+````JavaScript
+{name:"bronze",groups:10}
+````
+
 
 ##### Path to Resource
 Of course, for subscriber to know that the request is creating a "clients", it needs to know how to match a path to a "clients". It knows it is a "create" because the request method is `POST`, but how does it know if `/api/clients` or `/api/clients10` or `/foo/bar/client/25/me` is the path you `POST` to to create a "clients"?
@@ -252,6 +347,28 @@ DELETE /api/some/groups/:group
 ````
 
 
+##### Free trial
+If a free trial option is provided in `plans`, then users can have a free trial of any plan.
+
+The trial option is provide as part of the response to `plans()` as follows:
+
+````JavaScript
+{trial:{duration:14,fallback:"free"},plans:[{name:"free",groups:2},{name:"premium",groups:5},{name:"pro",groups:10}]}
+````
+
+The value of trial is, quite simply, the length in days of the free trial. In the above example, a user can get a free trial of the "premium" or "pro" plan for 14 days, after which they will fall back to the "free" plan. 
+
+If you don't want the user to have any fallback - i.e. after the free trial, they get no plan at all - then eliminate the "fallback" property:
+
+````JavaScript
+{trial:{duration:14},plans:[{name:"premium",groups:5},{name:"pro",groups:10}]}
+````
+
+Which can be short-handed as:
+
+````JavaScript
+{trial:14,plans:[{name:"premium",groups:5},{name:"pro",groups:10}]}
+````
 
 
 
@@ -260,18 +377,67 @@ The other activity for which `db` is responsible is telling `subscriber` all it 
 
 ````JavaScript
 db.user("john",function(err,res){
-	// res is, e.g. {name:"john",plan:"free",clients:3,groups:2}
+	// res is, e.g. {name:"john",plan:{name:"free",join:1234567,expire:1238899},usage:{clients:3,groups:2}}
 }); 
 ````
 
-subscriber will `get` "john", and get back what "john" actually has right now. In our example above, he already has 3 clients and 2 groups.
+subscriber will `get` "john", and receive back what usage "john" actually has right now. In our example above, he already has 3 clients and 2 groups.
+
+The "user" object has the following properties:
 
 
-But how does subscriber know which user is logged in, and thus which "name" to pass as the first argument to `db.user()`? It looks at `req.user` using the following logic:
+* name: String. Required. Name of the user:
+* plan: Object / String. Required. Properties of the user's current plan, or just name of the plan (see plan shorthand below).
+* usage: Optional. What usage the user currently has, or nothing (see usage shorthand below).
+
+##### User plan
+The "plan" property is an object with the following properties:
+
+* name: String. Required. Name of the plan.
+* trial: boolean. Optional. If `true`, then this person is in a free trial. Defaults to `false`.
+* join: Integer. Required. Date of the person joining the plan, as an integer (given by `Date.getTime()`)
+* expiry: Integer. Optional. Date of the person's plan expiring, as an integer (given by `Date.getTime()`)
+
+If you do not want to track when the user joined the plan, when his current plan expires, and if it is a trial, you can use the following shorthand:
+
+````JavaScript
+{name:"john",plan:"free",usage:{clients:3,groups:2}}
+````
+
+##### User usage
+The "usage" property is an object. Each key is the name of a resource that is protected by subscriber; each value is the integer of the current usage of this user.
+
+````JavaScript
+{name:"john",plan:"free",usage:{clients:3,groups:2}}
+````
+
+User "john" has 3 resources of type "clients" and 2 of type "groups". 
+
+There is also a shorthand version you can use, in which there is *no* property "usage". In that case, *every* property of the "user" object will be treated as a resource, except for reserved words "usage", "name", "plan".
+
+````JavaScript
+{name:"john",plan:"free",clients:3,groups:2}
+````
+
+
+
+##### Who is the user?
+How does subscriber know which user is logged in, and thus which "name" to pass as the first argument to `db.user()`? It looks at `req.user` using the following logic:
 
 1. If req.user is a string, use that, e.g. `req.user = "john"` will lead to `db.user("john",callback)`
 2. If req.user is an object, use `req.user.id`, e.g. `req.user.id = "john" will lead to `db.user("john",callback)`
 3. If req.user is `null` or `undefined`, there is no user
+
+
+##### Free trial
+If your system offers free trials, then the `user` object needs to have additional information about how this user signed up for the trial.
+
+````JavaScript
+{name:"john",plan:{name:"pro",join:1234567,expire:1238899,trial:true},usage:{clients:3,groups:2}}
+````
+
+When the user is no longer in a free trial, then "trial" should be set to `false` or simply deleted. 
+
 
 
 #### Putting it Together

@@ -1,27 +1,57 @@
 /*jslint node:true, nomen:true */
 var _ = require('lodash'), sjs = require('searchjs'), DATA = {
 	plans: [
-		{name:"free",clients:3,groups:5,other:2},
-		{name:"basic",clients:5,groups:10,other:5},
+		{name:"free",limits:{clients:3,groups:5,other:2}},
+		{name:"basic",limits:{clients:5,groups:10,other:5}},
 		{name:"premium",clients:null,groups:50,other:20}
 	],
 	users: {
-		free: {plan:"free",clients:2,other:2},
-		basic: {plan:"basic",groups:10,other:4},
-		premium: {plan:"premium",clients:20,groups:25,other:19}
-	}	
-}, data, that = {
-	user: function (username,callback) {
-		callback(null,data.users[username]);
+		free: {plan:{name:"free"},usage:{clients:2,other:2}},
+		basic: {plan:"basic",usage:{groups:10,other:4}},
+		premium: {plan:{name:"premium"},clients:20,groups:25,other:19}
 	},
-	plans: function (callback) {
-		callback(null,data.plans);
+	trial: {
+		
+	}
+}, data, that = {
+	regular: {
+		user: function (username,callback) {
+			callback(null,_.cloneDeep(data.users[username]));
+		},
+		plans: function (callback) {
+			callback(null,_.cloneDeep({trial:data.trial,plans:data.plans}));
+		}
+	},
+	planOnly: {
+		user: function (username,callback) {
+			callback(null,_.cloneDeep(data.users[username]));
+		},
+		plans: function (callback) {
+			callback(null,_.cloneDeep({plans:data.plans}));
+		}
+	},
+	trialShorthand: {
+		user: function (username,callback) {
+			callback(null,_.cloneDeep(data.users[username]));
+		},
+		plans: function (callback) {
+			callback(null,_.cloneDeep({trial:data.trial.length,plans:data.plans}));
+		}
+	},
+	planOnlyShorthand: {
+		user: function (username,callback) {
+			callback(null,_.cloneDeep(data.users[username]));
+		},
+		plans: function (callback) {
+			callback(null,_.cloneDeep(data.plans));
+		}
 	},
 	getUserBy: function (plan) {
 		return(_.where(data.users,{plan:plan}));
 	},
 	updateUser: function (username,field,change) {
-		data.users[username][field] += change;
+		var usage = data.users[username].usage || data.users[username];
+		usage[field] += change;
 	},
 	reset: function () {
 		data = _.cloneDeep(DATA);
